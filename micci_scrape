@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon May 29 06:28:22 2023
+
+@author: pin
+"""
+from selenium import webdriver
+from bs4 import BeautifulSoup
+import pandas as pd
+from selenium.common.exceptions import NoSuchElementException
+
+def extract_phone_number(input_string):
+    phone = ''
+    for x in range(input_string.find('Phone Number: ')+13, len(input_string)):
+        if input_string[x] != "n":
+            phone += input_string[x]
+        else: break
+    return str(phone)
+
+def extract_numeric_characters(string):
+    numeric_chars = ''.join(filter(str.isdigit, string))
+    return numeric_chars
+
+def get_rid_of_comma_on_website(string):
+    string = string[0:-1]
+    return string
+
+company_name = []
+company_site = []
+company_num = []
+company_industry = []
+
+driver = webdriver.Firefox(executable_path='/home/pin/Downloads/geckodriver')
+driver.get("https://www.micci.com/MemberDirectory.aspx")
+
+while True:
+    driver.execute_script("""
+       var l = document.getElementsByClassName("loading-overlay")[0];
+       l.parentNode.removeChild(l);
+    """)
+    s = BeautifulSoup(driver.page_source, 'html.parser')
+    for x in range(0, len(s.find_all('h2', class_='text-color-dark font-weight-bold text-5 mb-2 appear-animation'))):
+        company_name.append(s.find_all('h2', class_='text-color-dark font-weight-bold text-5 mb-2 appear-animation')[x].text)
+        company_industry.append(s.find_all('a', class_='badge badge-dark badge-sm badge-pill px-2 py-1 ml-1')[x].text)
+        company_site.append(get_rid_of_comma_on_website(s.find_all('a', class_='text-dark')[x].text))
+        company_num.append(extract_numeric_characters(extract_phone_number(str(s.find_all('div', class_='col-lg-12 isotope-item mt-4')[x].text))))
+    
+    try:  
+        link = driver.find_element_by_link_text('next')
+        link.click()
+    except NoSuchElementException:
+        driver.quit()
+        break
+    
+df = pd.DataFrame()    
+df['NAME'] = company_name
+df['WEBSITE'] = company_site
+df['INDUSTRY'] = company_industry
+df['PHONE'] = company_num
+df.to_csv('micci_scrape.csv')
